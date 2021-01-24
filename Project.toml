@@ -1,0 +1,8 @@
+name = "RayMarch"
+uuid = "c7188509-fa97-49bc-9e1d-44621919a6fa"
+authors = ["Zenna Tavares <zennatavares@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
