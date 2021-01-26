@@ -30,7 +30,7 @@ end
 
 abstract type Surface end
 
-struct Matte <: Surfacce
+struct Matte <: Surface
   color::Color
 end
 
@@ -183,6 +183,21 @@ function sampleLightRadiance(scene::Scene, osurf::OrientedSurface, inRay::Ray, r
   surfNor, surf = osurf
   rayPos, _ = inRay
 
+  radiance = [0.0, 0.0, 0.0]
+  for object in scene
+    if object isa Light
+      lightPos = object.position
+      hw = object.something
+      dirToLight, distToLight = directionAndLength(lightPos + sampleSquare(hw, rng) - rayPos)
+      if positiveProject(dirToLight, surfNor)
+        fracSolidAngle = relu(dot(dirToLight, yHat)) * (hw^2) / (pi * (distToLight)^2)
+        outRay = (rayPos, dirToLight)
+        coeff = fracSolidAngle * probReflection(osurf, inRay, outRay)
+        radiance += coeff .* rayDirectRadiance(scene, outRay)
+      end
+    end
+    radiance
+  end
   #=
   yieldAccum \radiance.
     for i. case objs.i of
@@ -199,7 +214,28 @@ function sampleLightRadiance(scene::Scene, osurf::OrientedSurface, inRay::Ray, r
 end
 
 function trace(params::Params, scene::Scene, initRay::Ray, rng::AbstractRNG)::Color 
-  noFilter = [1.0, 1.0, 1.0]
+  filter = [1.0, 1.0, 1.0]
+  ray = initRay
+  for i in 1:(params.maxBounces)
+    result = raymarch(scene, ray)
+    if result isa HitNothing           
+      break
+    elseif result isa HitLight
+      if i == 0
+        radiance += itensity
+      end
+      break
+    else # result isa HitObj
+      incidentRay = result.ray
+      osurf = result.oriented_surface
+      
+      lightRadiance = sampleLightRadiance(scene, osurf, incidentRay, rng)
+      ray = sampleReflection(osurf, incidentRay, rng)
+      filter = surfaceFilter(filter, osurf[2])
+      radiance += applyFilter(filter, lightRadiance)
+    end
+  end
+  radiance
   #=
   yieldAccum \radiance.
     runState  noFilter \filter.
