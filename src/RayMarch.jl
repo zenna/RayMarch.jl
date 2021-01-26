@@ -1,6 +1,6 @@
 module RayMarch
 
 include("util.jl")
-include("raymarch.jl")
+include("march.jl")
 
 end # module

@@ -1,5 +1,9 @@
 using GeometyBasics
+using Zygote
+include("./util.jl")
 
+const Vec3 = Array{Float64}
+const Image = Array{Array{Float64}}
 const Distance = Float64
 
 const Position = Vec3
@@ -47,7 +51,7 @@ end
 
 struct Light <: Object
   position::Position
-  something::Float64
+  hw::Float64
   radiance::Radiance
 end
 
@@ -62,7 +66,7 @@ end
 
 const Scene = Vector{Object}
 
-function sampleReflection(oriented_surface::OrientedSurface, ray::Ray, rng::AbstractRNG)::Ray 
+function sample_reflection(oriented_surface::OrientedSurface, ray::Ray, rng::AbstractRNG)::Ray 
   nor, surf = oriented_surface
   pos, dir = ray
   if surf isa Matte
@@ -73,7 +77,7 @@ function sampleReflection(oriented_surface::OrientedSurface, ray::Ray, rng::Abst
   (pos, new_dir)
 end
 
-function probReflection(oriented_surface::OrientedSurface, ray1::Ray, ray2::Ray)::Float 
+function prob_reflection(oriented_surface::OrientedSurface, ray1::Ray, ray2::Ray)::Float 
   nor, surf = oriented_surface
   _, outRayDir = ray2
   if surf isa Matte
@@ -83,11 +87,11 @@ function probReflection(oriented_surface::OrientedSurface, ray1::Ray, ray2::Ray)
   end
 end
 
-function applyFilter(filter::Filter, radiance::Radiance)::Radiance 
+function apply_filter(filter::Filter, radiance::Radiance)::Radiance 
   filter .* radiance
 end
 
-function surfaceFilter(filter::Filter, surf::Surface)::Filter 
+function surface_filter(filter::Filter, surf::Surface)::Filter 
   if surf isa Matte
     filter .* surf.color
   else
@@ -118,7 +122,7 @@ function sdObject(pos::Position, obj::Object)::Distance
     end
   else # obj isa Light
     squarePos = object.position
-    hw = object.something
+    hw = object.hw
 
     newPos = pos - squarePos
     halfWidths = [hw, 0.01, hw]
@@ -126,16 +130,18 @@ function sdObject(pos::Position, obj::Object)::Distance
   end
 end
 
-function sdScene(scene::Scene, pos::Position) # (Object & Distance) 
+function sdScene(scene::Scene, pos::Position)::Tuple{<:Object, Distance} 
   tuples = []
-  for i in length(objects)
-    push!(tuples, (sdObject(pos, objects[i]), i))
+  for i in length(scene)
+    push!(tuples, (sdObject(pos, scene[i]), i))
   end
   reverse(minimum(tuples))
 end
 
 function calcNormal(obj::Object, pos::Position)::Direction 
-  normalize(grad(flip(sdObject, obj)) pos)
+  grad = gradient(x -> sdObject(x, obj), pos) # produces tuple
+  normalize([i for i in grad])
+  # normalize(grad(flip(sdObject(obj)), pos))
 end
 
 # ----- Start: Define RayMarchResult ----- #
@@ -158,8 +164,29 @@ function raymarch(scene::Scene, ray::Ray)::RayMarchResult
   maxIters = 100
   tol = 0.01
   startLength = 10.0 * tol # trying to escape the current surface
-  (rayOrigin, rayDir) = ray
+  rayOrigin, rayDir = ray
 
+  rayLength = 10.0 * tol
+  defaultOutput = HitNothing()
+  for i in 1:maxIters
+    rayPos = rayOrigin + rayLength .* rayDir
+    obj, d = sdScene(scene, rayPos)
+    rayLength = rayLength + 0.9 * d # 0.9 ensures we come close to the surface but don't touch it
+    if d < tol
+      surfNorm = calcNormal(obj, rayPos)
+      if !(positiveProjection(rayDir, surfNorm))
+        if obj isa PassiveObject
+          surf = obj.surface
+          HitObj((rayPos, rayDir), (surfNorm, surf))
+        else # obj isa Light
+          radiance = obj.radiance
+          HitLight(radiance)
+        end
+        break
+      end
+    end
+  end
+  defaultOutput
 end
 
 function rayDirectRadiance(scene::Scene, ray::Ray)::Radiance 
@@ -187,13 +214,13 @@ function sampleLightRadiance(scene::Scene, osurf::OrientedSurface, inRay::Ray, r
   for object in scene
     if object isa Light
       lightPos = object.position
-      hw = object.something
+      hw = object.hw
       dirToLight, distToLight = directionAndLength(lightPos + sampleSquare(hw, rng) - rayPos)
       if positiveProject(dirToLight, surfNor)
         fracSolidAngle = relu(dot(dirToLight, yHat)) * (hw^2) / (pi * (distToLight)^2)
         outRay = (rayPos, dirToLight)
-        coeff = fracSolidAngle * probReflection(osurf, inRay, outRay)
-        radiance += coeff .* rayDirectRadiance(scene, outRay)
+        coeff = fracSolidAngle * prob_reflection(osurf, inRay, outRay)
+        radiance += coeff * rayDirectRadiance(scene, outRay)
       end
     end
     radiance
@@ -216,7 +243,8 @@ end
 function trace(params::Params, scene::Scene, initRay::Ray, rng::AbstractRNG)::Color 
   filter = [1.0, 1.0, 1.0]
   ray = initRay
-  for i in 1:(params.maxBounces)
+  radiance = [0.0, 0.0, 0.0]
+  for i in 1:(params.max_bounces)
     result = raymarch(scene, ray)
     if result isa HitNothing           
       break
@@ -230,9 +258,9 @@ function trace(params::Params, scene::Scene, initRay::Ray, rng::AbstractRNG)::Co
       osurf = result.oriented_surface
       
       lightRadiance = sampleLightRadiance(scene, osurf, incidentRay, rng)
-      ray = sampleReflection(osurf, incidentRay, rng)
-      filter = surfaceFilter(filter, osurf[2])
-      radiance += applyFilter(filter, lightRadiance)
+      ray = sample_reflection(osurf, incidentRay, rng)
+      filter = surface_filter(filter, osurf[2])
+      radiance += apply_filter(filter, lightRadiance)
     end
   end
   radiance
@@ -263,9 +291,9 @@ struct Camera
   sensorDist::Float64
 end
 
-function cameraRays(n::Int, camera::Camera)
+function cameraRays(n::Int, camera::Camera)::Array{Array{Function}}
   halfWidth = camera.halfWidth
-  pixHalfWidth = halfWidth / IToF n 
+  pixHalfWidth = halfWidth/n 
   ys = reverse(linspace(n, -halfWidth, halfWidth))
   xs = linspace(n, -halfWidth, halfWidth)
   output = zeros(n,n)
@@ -273,7 +301,7 @@ function cameraRays(n::Int, camera::Camera)
     for j in 1:n 
       output[i][j] = function(rng::AbstractRNG)
                        x = xs[j] + rand_uniform(-pixHalfWidth, pixHalfWidth, rng)
-                       y = ys[i] + rand_uniform(-pixHalfWidth, pixHalfWidth, ky)
+                       y = ys[i] + rand_uniform(-pixHalfWidth, pixHalfWidth, rng)
                        (camera.pos, normalize([x, y, -camera.sensorDist]))
                      end
     end 
@@ -298,4 +326,11 @@ function takePicture(params::Params, scene::Scene, camera::Camera)::Image
   image/meanColor  
 end
 
-# TODO: Image? Matrix? flip? grad?
+function linspace(n::Int64, low::Float64, high::Float64)::Array{Float64}
+  dx = (high - low)/n
+  output = zeros(n)
+  for i in 1:n
+    output[i] = low + i * dx
+  end
+  output
+end
