@@ -5,6 +5,7 @@ const Distance = Float64
 const Position = Vec3
 const Direction = Vec3  ## Should be normalized. TODO: use a newtype wrapper
 
+const Color = Vec3
 const BlockHalfWidths = Vec3
 const Radius = Float64
 const Radiance = Color # Hmm..
@@ -83,11 +84,15 @@ function probReflection(oriented_surface::OrientedSurface, ray1::Ray, ray2::Ray)
 end
 
 function applyFilter(filter::Filter, radiance::Radiance)::Radiance 
-  
+  filter .* radiance
 end
 
 function surfaceFilter(filter::Filter, surf::Surface)::Filter 
-
+  if surf isa Matte
+    filter .* surf.color
+  else
+    filter
+  end
 end
 
 function sdObject(pos::Position, obj::Object)::Distance 
@@ -122,7 +127,11 @@ function sdObject(pos::Position, obj::Object)::Distance
 end
 
 function sdScene(scene::Scene, pos::Position) # (Object & Distance) 
-  
+  tuples = []
+  for i in length(objects)
+    push!(tuples, (sdObject(pos, objects[i]), i))
+  end
+  reverse(minimum(tuples))
 end
 
 function calcNormal(obj::Object, pos::Position)::Direction 
@@ -158,9 +167,9 @@ function rayDirectRadiance(scene::Scene, ray::Ray)::Radiance
   if result isa HitLight
     result.radiance
   elseif result isa HitNothing
-    # color zero
+    [0.0, 0.0, 0.0] # color zero
   else # result isa HitObj
-    # color zero
+    [0.0, 0.0, 0.0] # color zero
   end
 end
 
@@ -179,8 +188,7 @@ function sampleLightRadiance(scene::Scene, osurf::OrientedSurface, inRay::Ray, r
     for i. case objs.i of
       PassiveObject _ _ -> ()
       Light lightPos hw _ ->
-        (dirToLight, distToLight) = directionAndLength $
-                                      lightPos + sampleSquare hw k - rayPos
+        (dirToLight, distToLight) = directionAndLength $ lightPos + sampleSquare hw k - rayPos
         if positiveProjection dirToLight surfNor then
           -- light on this far side of current surface
           fracSolidAngle = (relu $ dot dirToLight yHat) * sq hw / (pi * sq distToLight)
@@ -195,7 +203,7 @@ function trace(params::Params, scene::Scene, initRay::Ray, rng::AbstractRNG)::Co
   #=
   yieldAccum \radiance.
     runState  noFilter \filter.
-     runState initRay  \ray.
+      runState initRay  \ray.
       boundedIter (getAt #maxBounces params) () \i.
         case raymarch scene $ get ray of
           HitNothing -> Done ()
@@ -219,13 +227,39 @@ struct Camera
   sensorDist::Float64
 end
 
-function cameraRays(n::Int, camera::Camera)::Matrix 
-
+function cameraRays(n::Int, camera::Camera)
+  halfWidth = camera.halfWidth
+  pixHalfWidth = halfWidth / IToF n 
+  ys = reverse(linspace(n, -halfWidth, halfWidth))
+  xs = linspace(n, -halfWidth, halfWidth)
+  output = zeros(n,n)
+  for i in 1:n
+    for j in 1:n 
+      output[i][j] = function(rng::AbstractRNG)
+                       x = xs[j] + rand_uniform(-pixHalfWidth, pixHalfWidth, rng)
+                       y = ys[i] + rand_uniform(-pixHalfWidth, pixHalfWidth, ky)
+                       (camera.pos, normalize([x, y, -camera.sensorDist]))
+                     end
+    end 
+  end
+  output
 end
 
 function takePicture(params::Params, scene::Scene, camera::Camera)::Image 
-
+  n = camera.numPix
+  rays = cameraRays(n, camera)
+  rng = MersenneTwister(0)
+  image = zeros(n,n)
+  for i in 1:n
+    for j in 1:n 
+      function sampleRayColor(rng::AbstractRNG, color::Color)
+        trace(params, scene, rays[i][j](rng), rng)
+      end
+      image[i][j] = sample_average(sampleRayColor, params.num_samples, rng)
+    end
+  end
+  meanColor = sum(sum(sum(image)))/(n*n*3)
+  image/meanColor  
 end
 
-
-# TODO: Image? Matrix? flip? snd?
+# TODO: Image? Matrix? flip? grad?
