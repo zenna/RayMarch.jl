@@ -61,10 +61,10 @@ function render_car_scene(;car_pos::Vec3=[1.0, -1.2,  1.2],
 
   ped = [PassiveObject(Block([ped_x,             ped_y, ped_z], [0.1, 0.3, 0.1], 0), Matte(yellow)), # body
         PassiveObject(Block([ped_x - 0.05, ped_y - 0.6, ped_z], [0.045, 0.3, 0.1], 0), Matte(yellow)), # left leg
-        PassiveObject(Block([ped_x + 0.05, ped_y - 0.6, ped_z], [0.045, 0.3, 0.1], 0), Matte(yellow)), # right leg
-        PassiveObject(Block([ped_x - 0.15,       ped_y, ped_z], [0.045, 0.2, 0.095], 0), Matte(yellow)), # left arm
-        PassiveObject(Block([ped_x + 0.15,       ped_y, ped_z], [0.045, 0.2, 0.095], 0), Matte(yellow)), # right arm
-        PassiveObject(Sphere([ped_x,       ped_y + 0.4, ped_z], 0.125), Matte(yellow))] # head
+        PassiveObject(Block([ped_x + 0.05, ped_y - 0.6, ped_z], [0.045, 0.3, 0.1], 0), Matte(yellow)),] # right leg
+        # PassiveObject(Block([ped_x - 0.15,       ped_y, ped_z], [0.045, 0.2, 0.095], 0), Matte(yellow)), # left arm
+        # PassiveObject(Block([ped_x + 0.15,       ped_y, ped_z], [0.045, 0.2, 0.095], 0), Matte(yellow)), # right arm
+        # PassiveObject(Sphere([ped_x,       ped_y + 0.4, ped_z], 0.125), Matte(yellow))] # head
 
   obstruction = [PassiveObject(Block([obs_x, obs_y, obs_z], [3.0, 1.5, 3.0], 0), Matte(blue))]
 
