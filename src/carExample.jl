@@ -4,7 +4,7 @@ using Images
 using BenchmarkTools
 
 dex_test_mode = true
-smallDim = 40
+smallDim = 100
 
 # define colors
 lightColor     = [1.0, 1.0, 1.0]
@@ -14,29 +14,40 @@ rightWallColor = 1.5 .* [0.117, 0.4125, 0.115]
 whiteWallColor = [255.0, 239.0, 196.0] / 255.0
 blockColor     = [200.0, 200.0, 255.0] / 255.0
 blue           = [0.0,   191.0, 255.0] / 255.0
+yellow         = [255.0, 255.0, 102.0] / 255.0  
+
+# car position
+car_x, car_y, car_z = [1.0, -1.2,  1.2]
+
+# ped position
+ped_x, ped_y, ped_z = [-1.5, -1.1, 1.2]
+
+# obstruction position
+obs_x, obs_y, obs_z = [2.0, -0.5,  -4.0]
+
+car = [PassiveObject(Block([car_x,       car_y,  car_z], [0.9, 0.7, 0.5], 0), Matte(carColor)), # car body
+       PassiveObject(Block([car_x - 1.3, car_y,  car_z], [0.4, 0.3, 0.5], 0), Matte(carColor)), # hood 
+       PassiveObject(Block([car_x + 1.3, car_y,  car_z], [0.4, 0.3, 0.5], 0), Matte(carColor))] # trunk
+
+ped = [PassiveObject(Block([ped_x,              ped_y, ped_z], [0.1, 0.3, 0.1], 0), Matte(yellow)), # body
+       PassiveObject(Block([ped_x - 0.05, ped_y - 0.6, ped_z], [0.045, 0.3, 0.1], 0), Matte(yellow)), # left leg
+       PassiveObject(Block([ped_x + 0.05, ped_y - 0.6, ped_z], [0.045, 0.3, 0.1], 0), Matte(yellow)), # right right
+      #  PassiveObject(Block([ped_x - 0.15,       ped_y, ped_z], [0.045, 0.2, 0.95], 0), Matte(yellow)), # left arm
+      #  PassiveObject(Block([ped_x + 0.15,       ped_y, ped_z], [0.045, 0.2, 0.95], 0), Matte(yellow)), # right arm
+       PassiveObject(Sphere([ped_x,       ped_y + 0.4, ped_z], 0.125), Matte(yellow))] # head
+
+obstruction = [PassiveObject(Block([obs_x, obs_y, obs_z], [3.0, 1.5, 3.0], 0), Matte(blue))]
 
 # define scene: car
 theScene = [Light([-1.0, 1.9, 2.5], 0.5, lightColor),
             PassiveObject(Wall(yHat, 2.0), Matte(whiteWallColor)),
             PassiveObject(Wall(-yHat, 2.0), Matte(whiteWallColor)),
-            PassiveObject(Block([1.5, -0.5,  -4.0], [3.0, 1.5, 3.0], 0), Matte(blue)),
-            PassiveObject(Block([1.0, -1.2,  1.2], [0.9, 0.7, 0.5], 0), Matte(carColor)),
-            PassiveObject(Block([-0.3, -1.2,  1.2], [0.4, 0.3, 0.5], 0), Matte(carColor)),
-            PassiveObject(Block([2.3, -1.2,  1.2], [0.4, 0.3, 0.5], 0), Matte(carColor))]
-
-# define scene: default
-# theScene = [Light((1.9 .* yHat), 0.5, lightColor),
-#             PassiveObject(Wall(xHat, 2.0), Matte(leftWallColor)),
-#             PassiveObject(Wall(-xHat, 2.0), Matte(rightWallColor)),
-#             PassiveObject(Wall(yHat, 2.0), Matte(whiteWallColor)),
-#             PassiveObject(Wall(-yHat, 2.0), Matte(whiteWallColor)),
-#             PassiveObject(Wall(zHat,  2.0), Matte(whiteWallColor)),
-#             PassiveObject(Block([1.0, -1.6,  1.2], [0.6, 0.8, 0.6], 0.5), Matte(blockColor)),
-#             PassiveObject(Sphere([-1.0, -1.2,  0.2], 0.8), Matte(0.7 .* whiteWallColor)),
-#             PassiveObject(Sphere([ 2.0,  2.0, -2.0], 1.5), Mirror())]
+            obstruction...,
+            car...,
+            ped...]
 
 # define params
-defaultParams = Params(50, 10, true)
+defaultParams = RayMarch.Params(50, 10, true)
 
 # define camera
 defaultCamera = Camera(250, 10.0 .* zHat, 0.3, 1.0)
