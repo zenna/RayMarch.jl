@@ -6,9 +6,8 @@ using Random
 relu(x::Float64) = max(x, 0.0)
 len(x::Array{Float64}) = sqrt(sum(x.^ 2))
 normalize(x::Array{Float64}) = x ./ len(x)
-direction_and_length(x::Array{Float64}) = (l = length(x); (x ./ l, l))
+direction_and_length(x::Array{Float64}) = (l = len(x); (x ./ l, l))
 rand_uniform(a::Float64, b::Float64, rng::AbstractRNG) = rand(rng, Uniform(a, b))
-sample_average(sample::Function, n::Int, rng::AbstractRNG) = sum([sample(rng) for i in 1:n])/n
 positive_projection(x::Array{Float64}, y::Array{Float64}) = dot(x, y) > 0.0
 
 const xHat  = [1., 0., 0.]

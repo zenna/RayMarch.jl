@@ -3,7 +3,7 @@ using Zygote
 using Random 
 
 const Vec3 = Array{Float64}
-const Image = Array{Array{Array{Float64}}}
+const Image = Array{Float64, 3}
 const Distance = Float64
 
 const Position = Vec3
@@ -126,29 +126,22 @@ function sdObject(pos::Position, obj::Object)::Distance
 
     newPos = pos - squarePos
     halfWidths = [hw, 0.01, hw]
-    # println(len(map(relu, map(abs, newPos) - halfWidths)))
     len(map(relu, map(abs, newPos) - halfWidths))
   end
 end
 
 function sdScene(scene::Scene, pos::Position)::Tuple{<:Object, Distance} 
   tuples = []
-  # println(string("SCENE LENGTH", length(scene)))
   for i in 1:length(scene)
     push!(tuples, (sdObject(pos, scene[i]), i))
   end
   d, i = minimum(tuples)
-  if (tuples[1][1] == d && d < 0.01)
-    # println(d)
-  end
   (scene[i], d)
 end
 
 function calcNormal(obj::Object, pos::Position)::Direction 
   grad = gradient(x -> sdObject(x, obj), pos) # produces tuple
-  # println(grad)
   normalize(grad[1])
-  # normalize(grad(flip(sdObject(obj)), pos))
 end
 
 # ----- Start: Define RayMarchResult ----- #
@@ -168,38 +161,27 @@ struct HitNothing <: RayMarchResult end
 # ----- End: Define RayMarchResult ----- #
 
 function raymarch(scene::Scene, ray::Ray)::RayMarchResult 
-  # println("RAYMARCH")
   maxIters = 50
   tol = 0.01
   startLength = 10.0 * tol # trying to escape the current surface
   rayOrigin, rayDir = ray
-  #println(string("rayOrigin: ", rayOrigin))
-  #println(string("rayDir: ", rayDir))
 
   rayLength = 10.0 * tol
   defaultOutput = HitNothing()
   for i in 1:maxIters
     rayPos = rayOrigin + rayLength .* rayDir
-    # println(string("rayPos: ", rayPos))
     obj, d = sdScene(scene, rayPos)
-    # println("obj: ", obj)
-    # println("d: ", d)
     rayLength = rayLength + 0.9 * d # 0.9 ensures we come close to the surface but don't touch it
-    # println("rayLength: ", rayLength)
-    if obj isa Light
-      # println("LIGHT!")
-    end
+
     if d < tol
-      #println(string("YAY! d: ", d))
       surfNorm = calcNormal(obj, rayPos)
-      # println(string("surfNorm: ", surfNorm))
       if !(positive_projection(rayDir, surfNorm))
         if obj isa PassiveObject
-          # println("HERE HITOBJ")
           surf = obj.surface
           return HitObj((rayPos, rayDir), (surfNorm, surf))
         else # obj isa Light
           radiance = obj.radiance
+          # println(radiance)
           return HitLight(radiance)
         end
         break
@@ -211,8 +193,8 @@ end
 
 function rayDirectRadiance(scene::Scene, ray::Ray)::Radiance 
   result = raymarch(scene, ray)
-  # println(string("rayDirectRadiance: ", result))
   if result isa HitLight
+    # println(radiance)
     result.radiance
   elseif result isa HitNothing
     [0.0, 0.0, 0.0] # color zero
@@ -245,6 +227,7 @@ function sampleLightRadiance(scene::Scene, osurf::OrientedSurface, inRay::Ray, r
       end
     end
   end
+  # println(radiance)
   radiance
 end
 
@@ -254,13 +237,13 @@ function trace(params::Params, scene::Scene, initRay::Ray, rng::AbstractRNG)::Co
   radiance = [0.0, 0.0, 0.0]
   for i in 1:(params.max_bounces)
     result = raymarch(scene, ray)
-    # println("result")
-    # println(result)
     if result isa HitNothing           
       break
     elseif result isa HitLight
-      if i == 0
-        radiance += itensity
+      if i == 1
+        println("HERE?")
+        intensity = result.radiance
+        radiance += intensity
       end
       break
     else # result isa HitObj
@@ -273,7 +256,6 @@ function trace(params::Params, scene::Scene, initRay::Ray, rng::AbstractRNG)::Co
       radiance += apply_filter(filter, lightRadiance)
     end
   end
-  # println(radiance)
   radiance
 end
 
@@ -284,26 +266,32 @@ mutable struct Camera
   sensorDist::Float64
 end
 
-function cameraRays(n::Int, camera::Camera)::Array{Array{Function}}
-  halfWidth = camera.halfWidth
-  pixHalfWidth = halfWidth/n 
-  ys = reverse(linspace(n, -halfWidth, halfWidth))
-  xs = linspace(n, -halfWidth, halfWidth)
-  output = [[ function(rng::AbstractRNG)
-                x = xs[j] + rand_uniform(-pixHalfWidth, pixHalfWidth, rng)
-                y = ys[i] + rand_uniform(-pixHalfWidth, pixHalfWidth, rng)
-                (camera.pos, normalize([x, y, -camera.sensorDist]))
-              end for j in 1:n] for i in 1:n]
-  output
-end
+sample_average(sample::Function, x::Float64, y::Float64, n::Int, rng::AbstractRNG) = sum([sample(x, y, rng) for i in 1:n])/n
 
 function takePicture(params::Params, scene::Scene, camera::Camera)::Image
   n = camera.numPix
-  rays = cameraRays(n, camera)
+  # start originally in cameraRays
+  halfWidth = camera.halfWidth
+  pixHalfWidth = halfWidth/n 
+  ys = reverse(linspace(n, -halfWidth, halfWidth))
+  xs = linspace(n, -halfWidth, halfWidth)  
   rng = MersenneTwister(0)
-  image = [[sample_average(function sampleRayColor(rng::AbstractRNG)::Color
-                            trace(params, scene, rays[i][j](rng), rng)
-                          end, params.num_samples, rng) for j in 1:n] for i in 1:n]
+  image = zeros(Float64, 3, n, n)
+
+  function sampleRayColor(x::Float64, y::Float64, rng::AbstractRNG)::Color
+    trace(params, scene, (camera.pos, normalize([x, y, -camera.sensorDist])), rng)
+  end
+  # end originally in camera rays
+
+  for i in 1:n
+    println(i)
+    for j in 1:n
+      color = sample_average(sampleRayColor, xs[j], ys[i], params.num_samples, rng)
+      image[1, i, j] = color[1]
+      image[2, i, j] = color[2]
+      image[3, i, j] = color[3]
+    end
+  end
   image
 end
 
