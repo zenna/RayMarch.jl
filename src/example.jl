@@ -1,6 +1,10 @@
 using RayMarch
+using RayMarch: xHat, yHat, zHat, Light, PassiveObject, Wall, Matte, Block, Sphere, Mirror, Params, Camera, takePicture
+using Images 
+using BenchmarkTools
 
-dex_test_mode = false
+dex_test_mode = true
+smallDim = 100
 
 # define colors
 lightColor     = [0.2, 0.2, 0.2]
@@ -30,10 +34,30 @@ defaultCamera = Camera(250, 10.0 .* zHat, 0.3, 1.0)
 params = defaultParams
 
 if dex_test_mode
-  camera = defaultCamera.numPix = 10;
+  camera = Camera(smallDim, 10.0 * zHat, 0.3, 1.0)
 else 
   camera = defaultCamera
 end
 
 # compute image!
-image = takePicture(params, theScene, camera)
+@time begin
+  image = takePicture(params, theScene, camera)
+end
+
+red = [[image[i][j][1] for j in 1:smallDim] for i in 1:smallDim]
+blue = [[image[i][j][2] for j in 1:smallDim] for i in 1:smallDim]
+green = [[image[i][j][3] for j in 1:smallDim] for i in 1:smallDim]
+
+image = [red, blue, green]
+
+
+image_matrix = [image[i][j][k] for i = 1:3, j = 1:smallDim, k=1:smallDim]
+
+m = maximum(image_matrix)
+n = minimum(image_matrix)
+
+a = 255.0/(m - n)
+b = -a*n
+
+final_image = image_matrix .* a .+ b
+save("rgb.png", colorview(RGB, final_image./255))
