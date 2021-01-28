@@ -1,8 +1,8 @@
-using GeometryBasics
+# using GeometryBasics
 using Zygote
 using Random 
 
-const Vec3 = Array{Float64}
+# const Vec3 = Array{Float64}
 const Image = Array{Float64, 3}
 const Distance = Float64
 
@@ -110,7 +110,6 @@ function sdObject(pos::Position, obj::Object)::Distance
       blockPos = object_geom.position
       halfWidths = object_geom.blockhalfwidths
       angle = object_geom.angle
-      
       newPos = rotate_Y(pos - blockPos, angle)
       len(map(relu, map(abs, newPos) - halfWidths))
     else # object_geom isa Sphere
@@ -125,23 +124,37 @@ function sdObject(pos::Position, obj::Object)::Distance
     hw = obj.hw
 
     newPos = pos - squarePos
-    halfWidths = [hw, 0.01, hw]
+    # halfWidths = [hw, 0.01, hw]
+    halfWidths = Vec3(hw, 0.01, hw)
     len(map(relu, map(abs, newPos) - halfWidths))
   end
 end
 
-function sdScene(scene::Scene, pos::Position)::Tuple{<:Object, Distance} 
-  tuples = []
+function sdScene(scene::Scene, pos::Position)::Tuple{<:Object, Distance}
+  # tuples = []
+  min_ = Inf
+  i_min = 1
   for i in 1:length(scene)
-    push!(tuples, (sdObject(pos, scene[i]), i))
+    d = sdObject(pos, scene[i])
+    if d < min_
+      i_min = i
+      min_ = d
+    end
   end
-  d, i = minimum(tuples)
-  (scene[i], d)
+  #   push!(tuples, (sdObject(pos, scene[i]), i))
+  # end
+  # d, i = minimum(tuples)
+  # @show typeof(d)
+  # @show typeof(i)
+  # d, i = minimum()
+  (scene[i_min], min_)
 end
 
-function calcNormal(obj::Object, pos::Position)::Direction 
-  grad = gradient(x -> sdObject(x, obj), pos) # produces tuple
-  normalize(grad[1])
+function calcNormal(obj::Object, pos::Position)::Direction
+  # pos = [pos[1], pos[2], pos[3]]
+  # grad = gradient(x -> sdObject(x, obj), pos) # produces tuple
+  # normalize(Vec3(grad[1]))
+  Vec3(rand(), rand(), rand())
 end
 
 # ----- Start: Define RayMarchResult ----- #
@@ -197,23 +210,27 @@ function rayDirectRadiance(scene::Scene, ray::Ray)::Radiance
     # println(radiance)
     result.radiance
   elseif result isa HitNothing
-    [0.0, 0.0, 0.0] # color zero
+    # [0.0, 0.0, 0.0] # color zero
+    Vec3(0.0, 0.0, 0.0)
   else # result isa HitObj
-    [0.0, 0.0, 0.0] # color zero
+    # [0.0, 0.0, 0.0] # color zero
+    Vec3(0.0, 0.0, 0.0)
   end
 end
 
 function sampleSquare(hw::Float64, rng::AbstractRNG)::Position
   x = rand_uniform(-hw, hw, rng)
   z = rand_uniform(-hw, hw, rng)
-  [x, 0.0, z] 
+  # [x, 0.0, z]
+  Vec3(x, 0.0, z)
 end
 
 function sampleLightRadiance(scene::Scene, osurf::OrientedSurface, inRay::Ray, rng::AbstractRNG)::Radiance 
   surfNor, surf = osurf
   rayPos, _ = inRay
 
-  radiance = [0.0, 0.0, 0.0]
+  # radiance = [0.0, 0.0, 0.0]
+  radiance = Vec3(0.0, 0.0, 0.0)
   for object in scene
     if object isa Light
       lightPos = object.position
@@ -232,9 +249,11 @@ function sampleLightRadiance(scene::Scene, osurf::OrientedSurface, inRay::Ray, r
 end
 
 function trace(params::Params, scene::Scene, initRay::Ray, rng::AbstractRNG)::Color 
-  filter = [1.0, 1.0, 1.0]
+  # filter = [1.0, 1.0, 1.0]
+  filter = Vec3(1.0, 1.0, 1.0)
   ray = initRay
-  radiance = [0.0, 0.0, 0.0]
+  radiance = Vec3(0.0, 0.0, 0.0)
+  # radiance = [0.0, 0.0, 0.0]
   for i in 1:(params.max_bounces)
     result = raymarch(scene, ray)
     if result isa HitNothing           
@@ -266,7 +285,17 @@ mutable struct Camera
   sensorDist::Float64
 end
 
-sample_average(sample::Function, x::Float64, y::Float64, n::Int, rng::AbstractRNG) = sum([sample(x, y, rng) for i in 1:n])/n
+@inline function sample_average(sample::Function, x::Float64, y::Float64, n::Int, rng::AbstractRNG)
+  # tot = [0.0, 0.0, 0.0]
+  Vec3
+  tot = Vec3(0.0, 0.0, 0.0)
+  for i = 1:n
+    # @show size(sample(x, y, rng))
+    tot = tot .+ sample(x, y, rng)
+  end
+  tot / n
+  # sum([sample(x, y, rng) for i in 1:n])/n
+end
 
 function takePicture(params::Params, scene::Scene, camera::Camera)::Image
   n = camera.numPix
@@ -279,7 +308,7 @@ function takePicture(params::Params, scene::Scene, camera::Camera)::Image
   image = zeros(Float64, 3, n, n)
 
   function sampleRayColor(x::Float64, y::Float64, rng::AbstractRNG)::Color
-    trace(params, scene, (camera.pos, normalize([x, y, -camera.sensorDist])), rng)
+    trace(params, scene, (camera.pos, normalize(Vec3(x, y, -camera.sensorDist))), rng)
   end
   # end originally in camera rays
 
