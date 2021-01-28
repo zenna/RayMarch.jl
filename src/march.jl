@@ -284,7 +284,7 @@ function takePicture(params::Params, scene::Scene, camera::Camera)::Image
   # end originally in camera rays
 
   for i in 1:n
-    #(i)
+    println(i)
     for j in 1:n
       color = sample_average(sampleRayColor, xs[j], ys[i], params.num_samples, rng)
       image[1, i, j] = color[1]
