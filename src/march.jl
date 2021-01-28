@@ -130,24 +130,75 @@ function sdObject(pos::Position, obj::Object)::Distance
   end
 end
 
-function sdScene(scene::Scene, pos::Position)::Tuple{<:Object, Distance}
+function t1(object_geom::Wall, pos::Position)
+  nor = object_geom.direction
+  d = object_geom.distance
+  d + dot(nor, pos)
+end
+
+function t2(object_geom::Block, pos::Position)
+  blockPos = object_geom.position
+  halfWidths = object_geom.blockhalfwidths
+  angle = object_geom.angle
+  newPos = rotate_Y(pos - blockPos, angle)
+  len(Vec3(relu(abs(newPos[1]) - halfWidths[1]),
+           relu(abs(newPos[2]) - halfWidths[2]),
+           relu(abs(newPos[3]) - halfWidths[3])))
+  # len(map(relu, map(abs, newPos) - halfWidths))
+end
+
+function t3(object_geom::Sphere, pos::Position)
+  spherePos = object_geom.position
+  r = object_geom.radius
+  newPos = pos - spherePos
+  relu(len(newPos) - r)
+end
+
+function t4(obj::Light, pos::Position)
+  squarePos = obj.position
+  hw = obj.hw
+
+  newPos = pos - squarePos
+  # halfWidths = [hw, 0.01, hw]
+  halfWidths = Vec3(hw, 0.01, hw)
+  len(map(relu, map(abs, newPos) - halfWidths))
+
+end
+
+function handle_passive(s, pos)
+  if s isa Wall
+    t1(s, pos)
+  elseif s isa Block
+    t2(s, pos)
+  elseif s isa Sphere
+    t3(s, pos)
+  end
+end
+
+function sdObject(pos, scene, i)
+  s = scene[i]
+  # o = sdObject(pos, s)
+  if s isa PassiveObject
+    # @show fieldnames(typeof(s))
+    handle_passive(s.object_geom, pos)
+  else
+    t4(s, pos)
+  end
+end
+
+function sdScene(scene::Scene, pos::Position)
   # tuples = []
   min_ = Inf
   i_min = 1
   for i in 1:length(scene)
-    d = sdObject(pos, scene[i])
+    # s = scene[i]
+    d = sdObject(pos, scene, i)
     if d < min_
       i_min = i
       min_ = d
     end
   end
-  #   push!(tuples, (sdObject(pos, scene[i]), i))
-  # end
-  # d, i = minimum(tuples)
-  # @show typeof(d)
-  # @show typeof(i)
-  # d, i = minimum()
-  (scene[i_min], min_)
+  (i_min, min_)
 end
 
 function calcNormal(obj::Object, pos::Position)::Direction
@@ -173,8 +224,8 @@ struct HitNothing <: RayMarchResult end
 
 # ----- End: Define RayMarchResult ----- #
 
-function raymarch(scene::Scene, ray::Ray)::RayMarchResult 
-  maxIters = 50
+function raymarch(scene::Scene, ray::Ray; maxIters = 50)::RayMarchResult 
+
   tol = 0.01
   startLength = 10.0 * tol # trying to escape the current surface
   rayOrigin, rayDir = ray
@@ -183,7 +234,12 @@ function raymarch(scene::Scene, ray::Ray)::RayMarchResult
   defaultOutput = HitNothing()
   for i in 1:maxIters
     rayPos = rayOrigin + rayLength .* rayDir
-    obj, d = sdScene(scene, rayPos)
+    # obj = scene[1]
+    # d = 1.2
+    q = sdScene(scene, rayPos) # 29
+    obj = scene[q[1]]
+    d = q[2]
+    # @show typeof(d)
     rayLength = rayLength + 0.9 * d # 0.9 ensures we come close to the surface but don't touch it
 
     if d < tol
@@ -191,7 +247,7 @@ function raymarch(scene::Scene, ray::Ray)::RayMarchResult
       if !(positive_projection(rayDir, surfNorm))
         if obj isa PassiveObject
           surf = obj.surface
-          return HitObj((rayPos, rayDir), (surfNorm, surf))
+          return HitObj((rayPos, rayDir), (surfNorm, surf)) # 6
         else # obj isa Light
           radiance = obj.radiance
           # println(radiance)
@@ -316,9 +372,9 @@ function takePicture(params::Params, scene::Scene, camera::Camera)::Image
     println(i)
     for j in 1:n
       color = sample_average(sampleRayColor, xs[j], ys[i], params.num_samples, rng)
-      image[1, i, j] = color[1]
-      image[2, i, j] = color[2]
-      image[3, i, j] = color[3]
+      @inbounds image[1, i, j] = color[1]
+      @inbounds image[2, i, j] = color[2]
+      @inbounds image[3, i, j] = color[3]
     end
   end
   image
