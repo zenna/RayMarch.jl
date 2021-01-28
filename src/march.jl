@@ -202,10 +202,10 @@ function sdScene(scene::Scene, pos::Position)
 end
 
 function calcNormal(obj::Object, pos::Position)::Direction
-  # pos = [pos[1], pos[2], pos[3]]
-  # grad = gradient(x -> sdObject(x, obj), pos) # produces tuple
-  # normalize(Vec3(grad[1]))
-  Vec3(rand(), rand(), rand())
+  pos = [pos[1], pos[2], pos[3]]
+  grad = gradient(x -> sdObject(x, obj), pos) # produces tuple
+  normalize(Vec3(grad[1]))
+  # Vec3(rand(), rand(), rand())
 end
 
 # ----- Start: Define RayMarchResult ----- #
