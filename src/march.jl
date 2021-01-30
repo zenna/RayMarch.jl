@@ -353,14 +353,13 @@ end
   # sum([sample(x, y, rng) for i in 1:n])/n
 end
 
-function takePicture(params::Params, scene::Scene, camera::Camera)::Image
+function takePicture(params::Params, scene::Scene, camera::Camera; rng = MersenneTwister(0))::Image
   n = camera.numPix
   # start originally in cameraRays
   halfWidth = camera.halfWidth
   pixHalfWidth = halfWidth/n 
   ys = reverse(linspace(n, -halfWidth, halfWidth))
   xs = linspace(n, -halfWidth, halfWidth)  
-  rng = MersenneTwister(0)
   image = zeros(Float64, 3, n, n)
 
   function sampleRayColor(x::Float64, y::Float64, rng::AbstractRNG)::Color
