@@ -99,7 +99,7 @@ function surface_filter(filter::Filter, surf::Surface)::Filter
   end
 end
 
-function sdObject(pos::Position, obj::Object)::Distance 
+function sdObject(pos, obj::Object) 
   if obj isa PassiveObject
     object_geom = obj.object_geom
     if object_geom isa Wall
@@ -203,9 +203,12 @@ end
 
 function calcNormal(obj::Object, pos::Position)::Direction
   # pos = [pos[1], pos[2], pos[3]]
-  grad = gradient(x -> sdObject(x, obj), pos) # produces tuple
+  f(x) = sdObject(x, obj)
+  grads = gradient(x -> sdObject(x, obj), pos) # produces tuple
+  grad = grads[1]
   # normalize(Vec3(grad[1]))
-  Vec3(grad[1][1], grad[1][2], grad[1][3])
+  # grad = ForwardDiff.gradient(f, pos)
+  Vec3(grad[1], grad[2], grad[3])
 end
 
 # ----- Start: Define RayMarchResult ----- #

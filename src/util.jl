@@ -3,7 +3,7 @@ using Distributions
 using LinearAlgebra: dot, cross
 using Random
 
-@inline relu(x::Float64) = max(x, 0.0)
+@inline relu(x) = max(x, 0.0)
 len(x) = sqrt(sum(x .^ 2))
 normalize(x) = x ./ len(x)
 direction_and_length(x) = (l = len(x); (x ./ l, l))
