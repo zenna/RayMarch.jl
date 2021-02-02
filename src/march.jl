@@ -203,9 +203,9 @@ end
 
 function calcNormal(obj::Object, pos::Position)::Direction
   # pos = [pos[1], pos[2], pos[3]]
-  # grad = gradient(x -> sdObject(x, obj), pos) # produces tuple
+  grad = gradient(x -> sdObject(x, obj), pos) # produces tuple
   # normalize(Vec3(grad[1]))
-  Vec3(rand(), rand(), rand())
+  Vec3(grad[1][1], grad[1][2], grad[1][3])
 end
 
 # ----- Start: Define RayMarchResult ----- #
