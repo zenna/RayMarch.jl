@@ -99,7 +99,8 @@ function surface_filter(filter::Filter, surf::Surface)::Filter
   end
 end
 
-function sdObject(pos, obj::Object) 
+"Signed distance from position `pos` to object"
+function sd_object(pos, obj::Object) 
   if obj isa PassiveObject
     object_geom = obj.object_geom
     if object_geom isa Wall
@@ -175,9 +176,9 @@ function handle_passive(s, pos)
   end
 end
 
-function sdObject(pos, scene, i)
+function sd_object(pos, scene, i)
   s = scene[i]
-  # o = sdObject(pos, s)
+  # o = sd_object(pos, s)
   if s isa PassiveObject
     # @show fieldnames(typeof(s))
     handle_passive(s.object_geom, pos)
@@ -192,7 +193,7 @@ function sdScene(scene::Scene, pos::Position)
   i_min = 1
   for i in 1:length(scene)
     # s = scene[i]
-    d = sdObject(pos, scene, i)
+    d = sd_object(pos, scene, i)
     if d < min_
       i_min = i
       min_ = d
@@ -203,17 +204,20 @@ end
 
 function calcNormal(obj::Object, pos::Position)::Direction
   # pos = [pos[1], pos[2], pos[3]]
-  f(x) = sdObject(x, obj)
-  grads = gradient(x -> sdObject(x, obj), pos) # produces tuple
-  grad = grads[1]
+  # f(x) = sd_object(x, obj)
+  # grads = gradient(x -> sd_object(x, obj), pos) # produces tuple
+  # grad = grads[1]
   # normalize(Vec3(grad[1]))
   # grad = ForwardDiff.gradient(f, pos)
-  Vec3(grad[1], grad[2], grad[3])
+  # Vec3(grad[1], grad[2], grad[3])
+  Vec3(rand(), rand(), rand())
+
 end
 
 # ----- Start: Define RayMarchResult ----- #
 abstract type RayMarchResult end
 
+"Denotes that `ray` hit an object"
 struct HitObj <: RayMarchResult
   ray::Ray
   oriented_surface::OrientedSurface
@@ -227,23 +231,30 @@ struct HitNothing <: RayMarchResult end
 
 # ----- End: Define RayMarchResult ----- #
 
-function raymarch(scene::Scene, ray::Ray; maxIters = 50)::RayMarchResult 
+
+"""
+`raymarch(scene::Scene, ray::Ray; maxiters = 50)`
+
+Ray marchinges `scene` for a single `ray`
+"""
+function raymarch(scene::Scene, ray::Ray; maxiters = 50)::RayMarchResult 
 
   tol = 0.01
   startLength = 10.0 * tol # trying to escape the current surface
   rayOrigin, rayDir = ray
 
-  rayLength = 10.0 * tol
+  ray_length = 10.0 * tol
   defaultOutput = HitNothing()
-  for i in 1:maxIters
-    rayPos = rayOrigin + rayLength .* rayDir
+  for i in 1:maxiters
+    rayPos = rayOrigin + ray_length .* rayDir
     # obj = scene[1]
     # d = 1.2
     q = sdScene(scene, rayPos) # 29
     obj = scene[q[1]]
     d = q[2]
-    # @show typeof(d)
-    rayLength = rayLength + 0.9 * d # 0.9 ensures we come close to the surface but don't touch it
+    
+    # 0.9 ensures we come close to the surface but don't touch it
+    ray_length = ray_length + 0.9 * d
 
     if d < tol
       surfNorm = calcNormal(obj, rayPos)
